@@ -385,17 +385,16 @@ class FloorScreen:
             if self._are_orthogonally_adjacent(my_tile, clicked_tile) and clicked_tile.name != self.winner:
                 self.selected_origin = (my_tile.row, my_tile.col)
                 self.selected_target = (clicked_tile.row, clicked_tile.col)
-                # Set winner as challenger for get_selection_payload
-                self._pending_challenger = self.winner
+                # Always set _pending_challenger to a non-None value
+                self._pending_challenger = self.winner if self.winner else my_tile.name
                 self.request_screen_change = "duel"
-                print(f"Challenge: {self.winner} (challenger) vs {clicked_tile.name} (defender)")
+                print(f"Challenge: {self._pending_challenger} (challenger) vs {clicked_tile.name} (defender)")
                 return
         print("Clicked tile is not adjacent to any of your tiles or is your own tile.")
 
     def get_selection_payload(self):
         if self.request_screen_change != "duel":
             return None
-        # helper to find a tile by (row, col)
         def find_tile_by_pos(pos):
             row, col = pos
             for tile in self.tiles:
@@ -406,8 +405,10 @@ class FloorScreen:
         defender_tile = find_tile_by_pos(self.selected_target)
         if challenger_tile is None or defender_tile is None:
             return None
-        # Use _pending_challenger if set (for click-to-challenge), else use tile name
-        challenger_name = getattr(self, '_pending_challenger', challenger_tile.name)
+        # Always use _pending_challenger if set and not None
+        challenger_name = getattr(self, '_pending_challenger', None)
+        if not challenger_name:
+            challenger_name = challenger_tile.name
         if hasattr(self, '_pending_challenger'):
             del self._pending_challenger
         return {
