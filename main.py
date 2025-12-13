@@ -23,6 +23,7 @@ import csv
 import pygame
 from floor import FloorScreen
 from duel import DuelScreen
+import config
 
 
 def load_tile_data_from_csv(csv_path):
@@ -42,14 +43,14 @@ def main():
     pygame.init()
 
     # Create the main window.
-    screen = pygame.display.set_mode((1600, 900))
+    screen = pygame.display.set_mode((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
     pygame.display.set_caption("The Floor")
 
     # Clock for FPS limiting and delta time.
     clock = pygame.time.Clock()
 
     # Load initial tile data from CSV ONCE
-    initial_tile_data = load_tile_data_from_csv("floor_tiles.csv")
+    initial_tile_data = load_tile_data_from_csv(config.CSV_FILE_PATH)
     active_tile_data = copy.deepcopy(initial_tile_data)
 
     # -------------------------
@@ -63,7 +64,7 @@ def main():
     running = True
     while running:
         # delta_ms: milliseconds since last frame.
-        delta_ms = clock.tick(60)
+        delta_ms = clock.tick(config.FPS)
 
         # -------------------------
         # Event handling

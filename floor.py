@@ -31,6 +31,7 @@ import random
 from dataclasses import dataclass
 
 import pygame
+import config
 
 
 # ---------------------------------------------------------
@@ -64,7 +65,7 @@ class FloorScreen:
     FloorScreen encapsulates the main floor grid and randomizer behavior.
     """
 
-    def __init__(self, screen, csv_path="floor_tiles.csv", rows=3, cols=3, winner=None, loser=None, defender_category=None, tile_data=None):
+    def __init__(self, screen, csv_path=config.CSV_FILE_PATH, rows=config.GRID_ROWS, cols=config.GRID_COLS, winner=None, loser=None, defender_category=None, tile_data=None):
         """
         :param screen: the main Pygame display Surface (from set_mode).
         :param csv_path: path to CSV file with columns: name, category.
@@ -81,16 +82,16 @@ class FloorScreen:
         self.cols = cols
 
         # Fonts: one for title, one for tile text, one for the bottom message.
-        self.title_font = pygame.font.SysFont(None, 72)
-        self.tile_font = pygame.font.SysFont(None, 32)
-        self.message_font = pygame.font.SysFont(None, 36)
+        self.title_font = pygame.font.SysFont(None, config.FLOOR_TITLE_FONT_SIZE)
+        self.tile_font = pygame.font.SysFont(None, config.FLOOR_TILE_FONT_SIZE)
+        self.message_font = pygame.font.SysFont(None, config.FLOOR_MESSAGE_FONT_SIZE)
 
         # Colors (RGB tuples)
-        self.bg_color = (15, 15, 30)          # dark background
-        self.tile_color = (30, 60, 120)       # base tile color (dark-ish blue)
-        self.highlight_color = (80, 140, 220) # "lit up" tile color (light blue)
-        self.grid_line_color = (10, 20, 40)   # subtle outline
-        self.text_color = (255, 255, 255)
+        self.bg_color = config.FLOOR_BG_COLOR
+        self.tile_color = config.FLOOR_TILE_COLOR
+        self.highlight_color = config.FLOOR_HIGHLIGHT_COLOR
+        self.grid_line_color = config.FLOOR_GRID_LINE_COLOR
+        self.text_color = config.FLOOR_TEXT_COLOR
 
         # Use provided tile_data if present, else load from CSV
         if tile_data is not None:
@@ -116,13 +117,13 @@ class FloorScreen:
         # When the next "jump" to a new tile should occur (ms since pygame.init()).
         self.next_switch_time = None
 
-        # Total duration of the randomizer in milliseconds (10 seconds).
-        self.random_total_duration = 5_000
+        # Total duration of the randomizer in milliseconds.
+        self.random_total_duration = config.RANDOMIZER_TOTAL_DURATION_MS
 
         # Minimum and maximum intervals between jumps (ms).
         # We start near min_interval and ease toward max_interval as time passes.
-        self.min_interval = 200   # 0.2 seconds
-        self.max_interval = 700   # 0.7 seconds (slower near the end)
+        self.min_interval = config.RANDOMIZER_MIN_INTERVAL_MS
+        self.max_interval = config.RANDOMIZER_MAX_INTERVAL_MS
 
         # After randomizer ends, we treat the final highlight as origin.
         self.final_tile_index = None
@@ -202,12 +203,12 @@ class FloorScreen:
         tiles = []
 
         # Margins for top/bottom text areas.
-        top_margin = 100
-        bottom_margin = 100
+        top_margin = config.FLOOR_TOP_MARGIN
+        bottom_margin = config.FLOOR_BOTTOM_MARGIN
 
         # Available height for the grid area.
         grid_height_available = self.height - top_margin - bottom_margin
-        grid_width_available = self.width - 100  # some side margin
+        grid_width_available = self.width - config.FLOOR_SIDE_MARGIN  # some side margin
 
         # Size of each cell (square), using the limiting dimension.
         cell_size = min(
@@ -225,7 +226,7 @@ class FloorScreen:
         grid_top = top_margin + (grid_height_available - grid_height) // 2
 
         # Small padding between tiles so they don't fully touch.
-        padding = 5
+        padding = config.TILE_PADDING
 
         index = 0
         for row in range(self.rows):
@@ -390,7 +391,8 @@ class FloorScreen:
         Handle a mouse click when the state is 'finished'.
 
         Allows clicking any tile that is orthogonally adjacent
-        to the final highlighted tile.
+        to the final highlighted tile and doesn't have the same name
+        as the current active player.
 
         If a valid tile is clicked, set request_screen_change = "duel"
         and record origin/target positions.
@@ -409,6 +411,11 @@ class FloorScreen:
 
         if clicked_tile is None:
             return  # clicked outside any tile
+
+        # Check if clicked tile has the same name as the active player
+        if self.active_player and clicked_tile.name == self.active_player:
+            print("Cannot click your own tile. Ignoring.")
+            return
 
         # Check adjacency (up/down/left/right).
         if self._are_orthogonally_adjacent(final_tile, clicked_tile):
@@ -430,6 +437,12 @@ class FloorScreen:
                 break
         if clicked_tile is None:
             return
+        
+        # Check if clicked tile has the same name as the current player (winner)
+        if self.winner and clicked_tile.name == self.winner:
+            print("Cannot challenge your own tile. Ignoring.")
+            return
+            
         my_tiles = [self.tiles[i] for i in getattr(self, 'highlighted_indices', [])]
         for my_tile in my_tiles:
             if self._are_orthogonally_adjacent(my_tile, clicked_tile) and clicked_tile.name != self.winner:
@@ -459,6 +472,15 @@ class FloorScreen:
         challenger_name = getattr(self, '_pending_challenger', None)
         if not challenger_name:
             challenger_name = challenger_tile.name
+        
+        # Safety check: prevent same-name duels
+        if challenger_name == defender_tile.name:
+            print(f"Preventing same-name duel: {challenger_name} vs {defender_tile.name}")
+            self.request_screen_change = None
+            if hasattr(self, '_pending_challenger'):
+                del self._pending_challenger
+            return None
+            
         if hasattr(self, '_pending_challenger'):
             del self._pending_challenger
         return {
@@ -522,7 +544,7 @@ class FloorScreen:
         if self.duel_message:
             lines = self.duel_message.split("\n")
             for i, line in enumerate(lines):
-                msg_surf = self.message_font.render(line, True, (255, 255, 0))
+                msg_surf = self.message_font.render(line, True, config.YELLOW)
                 msg_rect = msg_surf.get_rect(center=(self.width // 2, self.height - 40 - (len(lines)-i-1)*40))
                 self.screen.blit(msg_surf, msg_rect)
 
@@ -577,13 +599,13 @@ class FloorScreen:
         # ----------------------------
         if self.game_over:
             message = f"{self.game_winner} has won The Floor!"
-            message_surf = self.message_font.render(message, True, (255, 215, 0))  # Gold color
+            message_surf = self.message_font.render(message, True, config.GOLD)
             message_rect = message_surf.get_rect(center=(self.width // 2, self.height - 40))
             self.screen.blit(message_surf, message_rect)
         elif self.duel_message:
             lines = self.duel_message.split("\n")
             for i, line in enumerate(lines):
-                msg_surf = self.message_font.render(line, True, (255, 255, 0))
+                msg_surf = self.message_font.render(line, True, config.YELLOW)
                 msg_rect = msg_surf.get_rect(center=(self.width // 2, self.height - 40 - (len(lines)-i-1)*40))
                 self.screen.blit(msg_surf, msg_rect)
         elif hasattr(self, 'post_duel_idle') and self.post_duel_idle:

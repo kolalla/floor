@@ -1,7 +1,8 @@
 import os
 import pandas as pd
+import config
 
-def create_img_folders(folder_path='images', categories_path='floor_tiles.csv'):
+def create_img_folders(folder_path=config.IMAGES_BASE_PATH, categories_path=config.CSV_FILE_PATH):
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     

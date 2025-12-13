@@ -16,6 +16,7 @@ It expects a main script (e.g. main.py) to:
 
 import pygame
 import os
+import config
 
 
 class DuelScreen:
@@ -35,7 +36,7 @@ class DuelScreen:
     def __init__(
         self,
         screen,
-        initial_time_ms=10_000,
+        initial_time_ms=config.DUEL_INITIAL_TIME_MS,
         challenger_name=None,
         defender_name=None,
         defender_category=None,
@@ -48,9 +49,9 @@ class DuelScreen:
         self.active_player = 1
 
         self.last_tick = pygame.time.get_ticks()
-        self.font = pygame.font.SysFont(None, 64)
-        self.name_font = pygame.font.SysFont(None, 36)
-        self.answer_font = pygame.font.SysFont(None, 48)
+        self.font = pygame.font.SysFont(None, config.DUEL_TIMER_FONT_SIZE)
+        self.name_font = pygame.font.SysFont(None, config.DUEL_NAME_FONT_SIZE)
+        self.answer_font = pygame.font.SysFont(None, config.DUEL_ANSWER_FONT_SIZE)
 
         # Store meta-info coming from the FloorScreen:
         self.challenger_name = challenger_name
@@ -81,7 +82,7 @@ class DuelScreen:
             "\n\tdefender_category  =", defender_category
         )
 
-        self.images, self.image_filenames = self._load_images_from_folder(f"images/{defender_category}")
+        self.images, self.image_filenames = self._load_images_from_folder(f"{config.IMAGES_BASE_PATH}/{defender_category}")
         self.current_image_index = 0
 
         self.winner = None  # 1 or 2 when someone wins, else None
@@ -99,8 +100,8 @@ class DuelScreen:
         Create a placeholder image before duel begins.
         Returns a single Surface.
         """
-        surf = pygame.Surface((1120, 630), pygame.SRCALPHA)
-        surf.fill((173, 216, 230))  # light blue
+        surf = pygame.Surface((config.DUEL_IMAGE_WIDTH, config.DUEL_IMAGE_HEIGHT), pygame.SRCALPHA)
+        surf.fill(config.LIGHT_BLUE)
 
         # Fill with text
         label = self.font.render(f"Press SPACE to start the duel!", True, (0, 0, 0))
@@ -117,8 +118,8 @@ class DuelScreen:
         Create a placeholder image after duel ends.
         Returns a single Surface.
         """
-        surf = pygame.Surface((1120, 630), pygame.SRCALPHA)
-        surf.fill((173, 216, 230))  # light blue
+        surf = pygame.Surface((config.DUEL_IMAGE_WIDTH, config.DUEL_IMAGE_HEIGHT), pygame.SRCALPHA)
+        surf.fill(config.LIGHT_BLUE)
 
         # Split the message into lines
         lines = [
@@ -164,7 +165,7 @@ class DuelScreen:
                 full_path = os.path.join(folder_path, filename)
                 try:
                     img = pygame.image.load(full_path).convert_alpha()
-                    img = pygame.transform.smoothscale(img, (1120, 630))
+                    img = pygame.transform.smoothscale(img, (config.DUEL_IMAGE_WIDTH, config.DUEL_IMAGE_HEIGHT))
                     images.append(img)
                     filenames.append(filename)
                 except Exception as e:
@@ -228,7 +229,7 @@ class DuelScreen:
                 # Pass function - 3 second penalty, show answer in red, stay with same player
                 if self.started and not self.winner and not self.paused and not self.reveal_answer_mode and not self.pass_penalty_mode:
                     self.pass_penalty_mode = True
-                    self.pass_penalty_timer_ms = 3000  # 3 seconds
+                    self.pass_penalty_timer_ms = config.PASS_PENALTY_TIME_MS
                     # Parse answer from current image filename
                     current_filename = self.image_filenames[self.current_image_index]
                     self.current_answer = self._parse_answer_from_filename(current_filename)
@@ -249,7 +250,7 @@ class DuelScreen:
                 elif not self.paused and not self.reveal_answer_mode:
                     # Enter answer reveal mode
                     self.reveal_answer_mode = True
-                    self.reveal_timer_ms = 3000  # 3 seconds
+                    self.reveal_timer_ms = config.ANSWER_REVEAL_TIME_MS
                     # Parse answer from current image filename
                     current_filename = self.image_filenames[self.current_image_index]
                     self.current_answer = self._parse_answer_from_filename(current_filename)
@@ -313,7 +314,7 @@ class DuelScreen:
         Draw the entire duel view to the screen.
         """
         # Clear the screen with a background color.
-        self.screen.fill((20, 20, 30))  # dark bluish-gray
+        self.screen.fill(config.DUEL_BG_COLOR)
 
         # -------------------------
         # Draw center image
@@ -331,12 +332,12 @@ class DuelScreen:
         t1_text = self.font.render(
             self._format_time(self.remaining_ms[1]),
             True,
-            (255, 255, 255)
+            config.WHITE
         )
         t2_text = self.font.render(
             self._format_time(self.remaining_ms[2]),
             True,
-            (255, 255, 255)
+            config.WHITE
         )
 
         # Position player 1 timer at top-left.
@@ -352,7 +353,7 @@ class DuelScreen:
             highlight_rect = t2_rect.inflate(padding * 2, padding * 2)
 
         # Draw filled rectangle for highlight.
-        pygame.draw.rect(self.screen, (0, 150, 0), highlight_rect)
+        pygame.draw.rect(self.screen, config.GREEN, highlight_rect)
 
         # Draw timer texts.
         self.screen.blit(t1_text, t1_rect)
@@ -365,7 +366,7 @@ class DuelScreen:
             name1_text = self.name_font.render(
                 self.challenger_name,
                 True,
-                (255, 255, 255)
+                config.WHITE
             )
             name1_rect = name1_text.get_rect(topleft=(20, t1_rect.bottom + 15))
             self.screen.blit(name1_text, name1_rect)
@@ -374,7 +375,7 @@ class DuelScreen:
             name2_text = self.name_font.render(
                 self.defender_name,
                 True,
-                (255, 255, 255)
+                config.WHITE
             )
             name2_rect = name2_text.get_rect(topright=(self.width - 20, t2_rect.bottom + 15))
             self.screen.blit(name2_text, name2_rect)
@@ -386,7 +387,7 @@ class DuelScreen:
             category_text = self.name_font.render(
                 self.defender_category,
                 True,
-                (255, 255, 255)
+                config.WHITE
             )
             category_rect = category_text.get_rect(midtop=(self.width // 2, 20))
             self.screen.blit(category_text, category_rect)
@@ -396,7 +397,7 @@ class DuelScreen:
         # -------------------------
         if (self.reveal_answer_mode or self.pass_penalty_mode) and self.current_answer:
             # Use red for pass penalty, yellow for normal reveal
-            answer_color = (255, 0, 0) if self.pass_penalty_mode else (255, 255, 0)
+            answer_color = config.RED if self.pass_penalty_mode else config.YELLOW
             answer_text = self.answer_font.render(
                 f"{self.current_answer}",
                 True,
@@ -406,7 +407,7 @@ class DuelScreen:
             # Draw a semi-transparent background for better readability
             bg_rect = answer_rect.inflate(20, 10)
             bg_surface = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            bg_surface.fill((0, 0, 0, 180))  # Black with alpha
+            bg_surface.fill(config.BLACK_ALPHA_180)
             self.screen.blit(bg_surface, bg_rect)
             self.screen.blit(answer_text, answer_rect)
 
@@ -414,11 +415,11 @@ class DuelScreen:
         # Draw PAUSED overlay
         # -------------------------
         if self.paused:
-            pause_text = self.font.render("PAUSED", True, (255, 0, 0))
+            pause_text = self.font.render("PAUSED", True, config.RED)
             pause_rect = pause_text.get_rect(center=(self.width // 2, self.height // 2))
             # Draw semi-transparent background
             bg_rect = pause_rect.inflate(40, 20)
             bg_surface = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            bg_surface.fill((0, 0, 0, 200))  # Black with alpha
+            bg_surface.fill(config.BLACK_ALPHA_200)
             self.screen.blit(bg_surface, bg_rect)
             self.screen.blit(pause_text, pause_rect)

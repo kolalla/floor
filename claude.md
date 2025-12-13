@@ -30,6 +30,7 @@ floor/
 ├── main.py        # Global game loop + screen switching
 ├── floor.py       # FloorScreen (grid + randomizer)
 ├── duel.py        # DuelScreen (timers + prompts)
+├── config.py      # Centralized configuration parameters
 ├── utils.py       # Helper functions (create image folders)
 ├── floor_tiles.csv
 └── images/
@@ -244,6 +245,9 @@ This allows FloorScreen to apply territory changes (winner takes loser's tile).
 
 - **Pygame-only**, desktop-focused (no iOS / mobile target).
 - No Docker or containerization required.
+- **Development Environment**: Uses conda environment `floor` with pygame installed
+  - When testing/running the game, use: `conda activate floor` before running Python
+  - The base Python install does not have pygame - always use the conda environment
 - Emphasis on:
   - clarity
   - modularity
@@ -262,6 +266,7 @@ This allows FloorScreen to apply territory changes (winner takes loser's tile).
 - ✅ Post-duel flow (result display → SPACE to update → click-to-challenge mode)
 - ✅ Answer reveal system (parsed from image filenames)
 - ✅ Pause and pass functionality
+- ✅ Centralized configuration system (config.py) for all game parameters
 
 **Known Limitations:**
 - Floor state is in-memory only (not persisted to CSV between sessions)
