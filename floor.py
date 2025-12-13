@@ -64,12 +64,16 @@ class FloorScreen:
     FloorScreen encapsulates the main floor grid and randomizer behavior.
     """
 
-    def __init__(self, screen, csv_path="floor_tiles.csv", rows=3, cols=3, winner=None, loser=None, tile_data=None):
+    def __init__(self, screen, csv_path="floor_tiles.csv", rows=3, cols=3, winner=None, loser=None, defender_category=None, tile_data=None):
         """
         :param screen: the main Pygame display Surface (from set_mode).
         :param csv_path: path to CSV file with columns: name, category.
         :param rows: number of grid rows.
         :param cols: number of grid columns.
+        :param winner: name of the player who won the duel.
+        :param loser: name of the player who lost the duel.
+        :param defender_category: category used in the previous duel (to be excluded from updates).
+        :param tile_data: optional tile data to use instead of loading from CSV.
         """
         self.screen = screen
         self.width, self.height = self.screen.get_size()
@@ -133,10 +137,18 @@ class FloorScreen:
         # Winner/loser handling (for DuelScreen result display).
         self.winner = winner
         self.loser = loser
+        self.defender_category = defender_category
         self.awaiting_update = bool(winner and loser)
         self.duel_message = None
         if self.awaiting_update:
             self.duel_message = f"Duel ended. Winner: {winner}, Loser: {loser}\nPress SPACE to update the FLOOR!"
+
+        # Track the active player (who controls the randomizer) - excludes their tiles from selection
+        self.active_player = None
+
+        # Game over tracking
+        self.game_over = False
+        self.game_winner = None
 
     # ---------------------------------------------------------
     # CSV loading + grid construction
@@ -255,14 +267,41 @@ class FloorScreen:
         t = max(0.0, min(1.0, t))  # clamp to [0, 1]
         return t * t  # feel free to adjust to t*(2-t) or similar if you want
 
+    def _check_game_over(self):
+        """
+        Check if all tiles have the same name (game over condition).
+        Returns True if one player owns all tiles.
+        """
+        if not self.tiles:
+            return False
+        first_name = self.tiles[0].name
+        return all(tile.name == first_name for tile in self.tiles)
+
+    def _get_eligible_tile_indices(self):
+        """
+        Get indices of tiles that can be selected by the randomizer.
+
+        On the first turn (active_player is None), all tiles are eligible.
+        On subsequent turns, only tiles NOT owned by the active player are eligible.
+        """
+        if self.active_player is None:
+            # First turn - all tiles are eligible
+            return list(range(len(self.tiles)))
+        else:
+            # Exclude tiles owned by active player
+            return [i for i, tile in enumerate(self.tiles) if tile.name != self.active_player]
+
     def _pick_next_tile_index(self, current_index):
         """
         Pick a random tile index different from current_index.
+        Only picks from eligible tiles (excludes active player's tiles if set).
         """
-        if len(self.tiles) <= 1:
-            return 0
+        eligible_indices = self._get_eligible_tile_indices()
+        if len(eligible_indices) <= 1:
+            return eligible_indices[0] if eligible_indices else 0
+
         while True:
-            idx = random.randrange(len(self.tiles))
+            idx = random.choice(eligible_indices)
             if idx != current_index:
                 return idx
 
@@ -298,8 +337,14 @@ class FloorScreen:
             self._replace_loser_with_winner()
             self.awaiting_update = False
             self.duel_message = None
-            # Set a new message for post-duel idle state
-            self.post_duel_idle = True
+            # Check if game is over (all tiles have the same name)
+            if self._check_game_over():
+                self.game_over = True
+                self.game_winner = self.winner
+                self.post_duel_idle = False
+            else:
+                # Set a new message for post-duel idle state
+                self.post_duel_idle = True
             return
         # Allow click-to-challenge in idle state after a duel update
         if hasattr(self, 'post_duel_idle') and self.post_duel_idle and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -319,15 +364,20 @@ class FloorScreen:
     def _start_randomizer(self):
         """
         Initialize the randomizer state when SPACE is pressed.
+        Only selects from eligible tiles (excludes active player's tiles if set).
         """
         if not self.tiles:
             return
 
+        eligible_indices = self._get_eligible_tile_indices()
+        if not eligible_indices:
+            return  # No eligible tiles (shouldn't happen in normal gameplay)
+
         self.state = "randomizing"
         self.random_start_time = pygame.time.get_ticks()
 
-        # Start by highlighting a random tile.
-        self.highlighted_index = random.randrange(len(self.tiles))
+        # Start by highlighting a random eligible tile.
+        self.highlighted_index = random.choice(eligible_indices)
 
         # Schedule the first switch.
         self.next_switch_time = self.random_start_time + self.min_interval
@@ -525,7 +575,12 @@ class FloorScreen:
         # ----------------------------
         # Draw bottom message
         # ----------------------------
-        if self.duel_message:
+        if self.game_over:
+            message = f"{self.game_winner} has won The Floor!"
+            message_surf = self.message_font.render(message, True, (255, 215, 0))  # Gold color
+            message_rect = message_surf.get_rect(center=(self.width // 2, self.height - 40))
+            self.screen.blit(message_surf, message_rect)
+        elif self.duel_message:
             lines = self.duel_message.split("\n")
             for i, line in enumerate(lines):
                 msg_surf = self.message_font.render(line, True, (255, 255, 0))
@@ -550,13 +605,41 @@ class FloorScreen:
 
     def _replace_loser_with_winner(self):
         winner_tile = next((t for t in self.tiles if t.name == self.winner), None)
-        for tile in self.tiles:
-            if tile.name == self.loser and winner_tile:
+        loser_tile = next((t for t in self.tiles if t.name == self.loser), None)
+
+        # Determine which category to use (the one that WASN'T the defender category)
+        if self.defender_category and winner_tile and loser_tile:
+            winner_category = winner_tile.category
+            loser_category = loser_tile.category
+
+            # Use the category that doesn't match defender_category
+            if winner_category != self.defender_category:
+                new_category = winner_category
+            elif loser_category != self.defender_category:
+                new_category = loser_category
+            else:
+                # Fallback: use winner's category
+                new_category = winner_category
+        else:
+            # First round or no defender_category set: use winner's category
+            new_category = winner_tile.category if winner_tile else None
+
+        # First, convert all loser's tiles to winner's tiles
+        for i, tile in enumerate(self.tiles):
+            if tile.name == self.loser:
                 tile.name = self.winner
-                tile.category = winner_tile.category
-                break
+                self.tile_data[i]["name"] = self.winner
+
+        # Then, update ALL winner's tiles (both existing and newly conquered) with the new category
+        for i, tile in enumerate(self.tiles):
+            if tile.name == self.winner and new_category:
+                tile.category = new_category
+                self.tile_data[i]["category"] = new_category
+
         # After update, highlight all winner's tiles
         self.highlighted_indices = [i for i, t in enumerate(self.tiles) if t.name == self.winner]
+        # Set the active player - their tiles will be excluded from the next randomizer
+        self.active_player = self.winner
         # No CSV write here; in-memory only
 
     def _save_tiles_to_csv(self):

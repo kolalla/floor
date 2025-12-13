@@ -119,8 +119,9 @@ def main():
                 if isinstance(req, dict) and req.get("screen") == "floor":
                     winner = req.get("winner")
                     loser = req.get("loser")
+                    defender_category = req.get("defender_category")
                     # Do NOT update active_tile_data yet; wait for SPACE in FloorScreen
-                    floor_screen = FloorScreen(screen, winner=winner, loser=loser, tile_data=active_tile_data)
+                    floor_screen = FloorScreen(screen, winner=winner, loser=loser, defender_category=defender_category, tile_data=active_tile_data)
                     current_screen = floor_screen
                     mode = "floor"
                 elif req == "floor":
